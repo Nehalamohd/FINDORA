@@ -1,7 +1,8 @@
+import streamlit as st
+import speech_recognition as sr
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_groq import ChatGroq
-import streamlit as st
 import os
 from dotenv import load_dotenv
 
@@ -14,7 +15,6 @@ st.set_page_config(page_title="Findora", layout="wide")
 # 🎨 Custom CSS (background + search bar styling)
 custom_css = """
 <style>
-/* 🌄 Background styling */
 [data-testid="stAppViewContainer"] {
     background-image: url("https://wallpapers.com/images/hd/dark-gradient-6bly12umg2d4psr2.jpg");
     background-size: cover;
@@ -23,7 +23,6 @@ custom_css = """
     color: white;
 }
 
-/* Transparent header */
 [data-testid="stHeader"] {
     background: rgba(0, 0, 0, 0);
 }
@@ -48,7 +47,6 @@ div[data-baseweb="input"] > div {
     transition: all 0.3s ease-in-out;
 }
 
-/* Hover effect */
 div[data-baseweb="input"] > div:hover {
     box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.5);
 }
@@ -66,7 +64,7 @@ input::placeholder {
     text-align: center;
 }
 
-/* 🏷️ Change label ("Search what you want to know") styling */
+/* Label ("Search what you want to know") styling */
 label[data-testid="stTextInputLabel"] {
     color: white !important;
     font-size: 20px !important;
@@ -77,15 +75,32 @@ label[data-testid="stTextInputLabel"] {
     text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
 }
 
-/* Center content */
+/* Center elements */
 .main {
     display: flex;
     flex-direction: column;
     align-items: center;
 }
+
+/* 🎤 Speak button */
+.stButton>button {
+    background-color: #1e3c72;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 25px;
+    padding: 10px 25px;
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: all 0.3s ease-in-out;
+}
+
+.stButton>button:hover {
+    background-color: #3f5efb;
+    transform: scale(1.05);
+}
 </style>
 """
-
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ✅ Get API key safely
@@ -97,22 +112,42 @@ if not groq_api_key:
 
 # ✅ UI layout
 st.title("🔍 FINDORA")
-input_text = st.text_input("Search what you want to know")
 
-# ✅ Define the prompt
+# 🎙️ Voice + text input section
+recognizer = sr.Recognizer()
+st.write("🎙️ You can type or speak your query below:")
+
+voice_input = ""
+if st.button("🎤 Speak"):
+    with sr.Microphone() as source:
+        st.info("🎧 Listening... Please speak your question.")
+        audio = recognizer.listen(source)
+        try:
+            voice_input = recognizer.recognize_google(audio)
+            st.success(f"✅ You said: {voice_input}")
+        except sr.UnknownValueError:
+            st.error("❌ Sorry, I couldn’t understand your voice.")
+        except sr.RequestError:
+            st.error("⚠️ Speech service error. Please check your internet connection.")
+
+# 📝 Text input
+text_input = st.text_input("Search what you want to know")
+
+# Combine both inputs
+query = voice_input or text_input
+
+# 🔗 LangChain setup
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant. Please respond to user queries."),
     ("user", "Question: {question}")
 ])
 
-# ✅ Groq model
 llm = ChatGroq(model="llama-3.1-8b-instant", groq_api_key=groq_api_key)
-
-# ✅ Output chain
 output_parser = StrOutputParser()
 chain = prompt | llm | output_parser
 
-# ✅ Generate response
-if input_text:
-    response = chain.invoke({'question': input_text})
+# 💬 Generate response
+if query:
+    response = chain.invoke({'question': query})
+    st.subheader("🧠 Findora says:")
     st.write(response)
